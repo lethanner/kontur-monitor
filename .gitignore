@@ -1,0 +1,5 @@
+build
+.VSCodeCounter
+.vscode/c_cpp_properties.json
+.vscode/arduino.json
+src/cretendials.h
