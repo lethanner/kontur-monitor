@@ -2,7 +2,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
-typedef void (*IncomingCallback)(JsonArrayConst);
+typedef void (*IncomingCallback)(JsonObjectConst);
 
 class VKAPI
 {

@@ -5,17 +5,16 @@
 
 VKAPI vk(access_token, group_id, &Serial);
 
-void processEvents(JsonArrayConst events)
+void processEvent(JsonObjectConst event)
 {
-    for (JsonObjectConst event: events) {
-        const char* type = event["type"];
-        if (strcmp(type, "message_new") == 0) {
-            uint32_t from_id = event["object"]["message"]["from_id"];
-            const char* text = event["object"]["message"]["text"];
+    Serial.println(F("[DEBUG] processEvent() called"));
+    const char* type = event["type"];
+    if (strcmp(type, "message_new") == 0) {
+        uint32_t from_id = event["object"]["message"]["from_id"];
+        const char* text = event["object"]["message"]["text"];
 
-            Serial.printf("[MESSAGE] From id%u: %s\r\n", from_id, text);
-            vk.sendMessage(from_id, "Привет! Говорит ESP8266.");
-        }
+        Serial.printf("[MESSAGE] From id%u: %s\r\n", from_id, text);
+        vk.sendMessage(from_id, "Привет! Говорит ESP8266.");
     }
 }
 
@@ -25,7 +24,7 @@ void setup()
     Serial.println(F("Kontur monitoring system v.1.0\r\n"
                      "Made by Lethanner.\r\n"));
 
-	// подключение к wi-fi
+    // подключение к wi-fi
     Serial.print(F("[WiFi] Waiting for connection"));
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
@@ -35,19 +34,19 @@ void setup()
     }
     Serial.println(WiFi.localIP());
 
-	// синхронизация часов по NTP
+    // синхронизация часов по NTP
     Serial.print(F("[NTP] Waiting for time"));
     configTime(TZ_Europe_Samara, 0, "pool.ntp.org", "ntp0.ntp-servers.net");
     time_t now = time(nullptr);
-	while (now < 1000000000) {
-		now = time(nullptr);
-		Serial.print('.');
-		delay(1000);
-	}
-	Serial.println(now);
+    while (now < 1000000000) {
+        now = time(nullptr);
+        Serial.print('.');
+        delay(1000);
+    }
+    Serial.println(now);
 
-	vk.init();
-    vk.setIncomingMessagesCallback(&processEvents);
+    vk.init();
+    vk.setIncomingMessagesCallback(&processEvent);
 }
 
 void loop()
