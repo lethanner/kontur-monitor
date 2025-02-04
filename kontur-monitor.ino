@@ -21,7 +21,7 @@ void processEvent(JsonObjectConst event)
 void setup()
 {
     Serial.begin(74880);
-    Serial.println(F("Kontur monitoring system v.1.0\r\n"
+    Serial.println(F("\r\nKontur monitoring system v.1.0\r\n"
                      "Made by Lethanner.\r\n"));
 
     // подключение к wi-fi
