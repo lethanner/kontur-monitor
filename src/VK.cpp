@@ -190,10 +190,7 @@ char* VKAPI::readHTTPResponse(Stream& str)
 {
     // если ответ сервера не 200 - F
     if (!str.find("200 OK")) {
-        debug->print(F("[ERROR] Request failed!!\r\nGot: "));
-        while (str.available()) {
-            debug->write(str.read());
-        }
+        debug->println(F("[ERROR] Request failed!!"));
         return NULL;
     }
 
