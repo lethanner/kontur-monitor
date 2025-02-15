@@ -10,7 +10,7 @@ class VKAPI
     VKAPI(const char* access_token, uint32_t groupID, Stream* debugstr)
       : token(access_token), group_id(groupID), debug(debugstr)
     {
-        default_params_length = strlen(access_token) + 13 + 8;
+        default_params_length = strlen(access_token) + 22;
     };
     void init();
     bool longPoll();
@@ -21,12 +21,13 @@ class VKAPI
     }
 
   private:
-    bool apiStart(const char* method, uint16_t cLength = 0);
-    void apiEndGET(uint16_t cLength = 0);
+    //bool apiStart(const char* method, uint16_t cLength = 0);
+    //void apiEndGET(uint16_t cLength = 0);
+    enum class Method { GET, POST };
+    bool apiRequest(Method m, const char* method, const char* args);
     bool updateLongPoll();
 
     char* readHTTPResponse(Stream& str);
-    uint8_t countDigits(uint32_t number);
 
     const char* token;
     const uint32_t group_id;

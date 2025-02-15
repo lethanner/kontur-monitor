@@ -23,19 +23,56 @@ void VKAPI::init()
     }
 }
 
+bool VKAPI::apiRequest(Method m, const char* method, const char* data)
+{
+    if (!api.connected()) {
+        debug->print(F("[INFO] Connecting to API..."));
+        if (!api.connect("api.vk.com", 443)) {
+            debug->println(F("failed!"));
+            return false;
+        }
+        debug->print(F("connected"));
+        debug->println(api.getMFLNStatus() ? F(" with MFLN!") : F("."));
+    }
+    api.setTimeout(1000);
+
+    if (m == Method::GET) {
+        api.printf("GET /method/%s?v=5.199&access_token="
+                   "%s&%s HTTP/1.1\r\n"
+                   "Host: api.vk.com\r\n"
+                   "User-Agent: Espressif\r\n"
+                   "Connection: Keep-alive\r\n\r\n",
+                   method, token, data);
+    } else {
+        uint16_t cLength = strlen(data) + default_params_length;
+        api.printf(
+         "POST /method/%s HTTP/1.1\r\n"
+         "Host: api.vk.com\r\n"
+         "User-Agent: Espressif\r\n"
+         "Connection: Keep-alive\r\n"
+         "Content-Type: application/x-www-form-urlencoded\r\n"
+         "Content-Length: %u\r\n\r\n"
+         "v=5.199&access_token=%s&%s",
+         method, cLength, token, data);
+    }
+
+    return true;
+}
+
 // отправка сообщения юзеру с ИД peer_id
 int VKAPI::sendMessage(uint32_t peer_id, const char* text, const char* keyboard)
 {
-    if (!apiStart("messages.send", strlen(text) + strlen(keyboard) + countDigits(peer_id) + 9 + 21 + 10))
-        return -1;
+    // определиться с длиной запроса на сервер, выделить память
+    uint16_t length = strlen(text) + strlen(keyboard) + 60;
+    char* data = new char[length];
+    if (data == NULL) return -1;
 
-    api.print(F("&random_id=0&peer_id="));
-    api.print(peer_id);
-    api.print(F("&keyboard="));
-    api.print(keyboard);
-    api.print(F("&message="));
-    api.print(text);
+    // сформировать запрос, выслать на сервер
+    snprintf(data, length, "random_id=0&peer_id=%u&keyboard=%s&message=%s", peer_id, keyboard, text);
+    apiRequest(Method::POST, "messages.send", data);
+    delete[] data;
 
+    // получить результат
     int result = -1;
     char* response = readHTTPResponse(api);
     StaticJsonDocument<64> responseJson;
@@ -57,77 +94,44 @@ int VKAPI::sendMessage(uint32_t peer_id, const char* text, const char* keyboard)
     return result;
 }
 
-// начать GET/POST запрос
-bool VKAPI::apiStart(const char* method, uint16_t cLength)
-{
-    if (!api.connected()) {
-        debug->print(F("[INFO] Connecting to API..."));
-        if (!api.connect("api.vk.com", 443)) {
-            debug->println(F("failed!"));
-            return false;
-        }
-        debug->print(F("connected"));
-        debug->println(api.getMFLNStatus() ? F(" with MFLN!") : F("."));
-    }
-    api.setTimeout(1000);
-
-    api.print(cLength > 0 ? "POST" : "GET");
-    api.print(" /method/");
-    api.print(method);
-
-    // для POST запроса вызываем сразу функцию apiEnd
-    if (cLength > 0) apiEndGET(cLength);
-    else {  // для GET запроса сразу передаём access token
-        api.print(F("?v=5.199&access_token="));
-        api.print(token);
-    }
-
-    return true;
-}
-
-// закончить начало запроса
-void VKAPI::apiEndGET(uint16_t cLength)
-{
-    api.print(F(" HTTP/1.1\r\n"
-                "Host: api.vk.com\r\n"
-                "User-Agent: Espressif\r\n"
-                "Connection: Keep-alive"));
-
-    // если это POST запрос, добавим нужные заголовки
-    if (cLength > 0) {
-        api.print(F("\r\nContent-Type: application/x-www-form-urlencoded"
-                    "\r\nContent-Length: "));
-        api.print(cLength + default_params_length);
-    }
-    api.print("\r\n\r\n");
-    api.print(F("v=5.199&access_token="));
-    api.print(token);
-}
-
 bool VKAPI::updateLongPoll()
 {
-    debug->println(F("[INFO] Getting new Long Poll server..."));
+    debug->println(F("[INFO] Requesting new Long Poll server..."));
     memset(lprequest, '\0', 300);
     strcpy(lprequest, "GET ");
 
-    apiStart("groups.getLongPollServer");
-    api.print("&group_id=");
-    api.print(group_id);
-    apiEndGET();
+    char request[21];
+    snprintf(request, 21, "group_id=%u", group_id);
+    apiRequest(Method::GET, "groups.getLongPollServer", request);
 
     char* response = readHTTPResponse(api);
     if (response == NULL) {
         debug->println(F("failed!"));
         return false;
     }
-    debug->print(F("[INFO] Long Poll server successfully got\r\n[DEBUG] "));
+    debug->print(F("[DEBUG] "));
     debug->println(response);
 
     StaticJsonDocument<64> new_lp;
     deserializeJson(new_lp, response);
 
     // P.S. однажды ВК поменяет адрес сервера Long Poll и эта "оптимизация" даст о себе знать.
-    if (strncmp(new_lp["response"]["server"], "https://lp.vk.com", 17) != 0) return false;
+    // тут крч проверяется, начинается ли полученный адрес сервера с (видно чего)
+    if (strncmp(new_lp["response"]["server"], "https://lp.vk.com", 17) != 0) {
+        debug->print(F("[ERROR] Invalid server information received. Got: "));
+        debug->println(response);
+
+        // если это косяк именно нового адреса, но при этом ответ от сервера нормальный, то
+        // блокируем дальнейшую работу до обновления ПО
+        // P.S. я надеюсь, что я нормально сделаю автоподстройку адреса раньше, чем ВК что-то обновит...
+        // clang-format off
+        if (new_lp.containsKey("response")) {
+            debug->println(F("[ERROR] Software update required. System halted."));
+            while (1) { yield(); }
+        }
+        // clang-format on
+        return false;
+    }
 
     const char* server = new_lp["response"]["server"];
     strcat(lprequest, (server + 17));  // срезать https://lp.vk.com из начала строки (с помощью сдвига указателя)
@@ -148,7 +152,7 @@ bool VKAPI::longPoll()
     debug->print(F("[DEBUG] Free heap: "));
     debug->println(ESP.getFreeHeap());
 
-    if (strlen(lprequest) < 1) updateLongPoll();
+    if (strlen(lprequest) < 1) return updateLongPoll();
 
     if (!lp.connected()) {
         debug->print(F("[INFO] Connecting to Long Poll server..."));
@@ -161,12 +165,14 @@ bool VKAPI::longPoll()
     }
     lp.setTimeout(30000);
 
+    // эта часть кода запускается не реже раза в 25 секунд
+    // тут я использовать printf не рискну уже
     lp.print(lprequest);
     lp.print(ts);
-    lp.print(F(" HTTP/1.1\r\n"
-               "Host: lp.vk.com\r\n"
-               "User-Agent: Espressif\r\n"
-               "Connection: Keep-alive\r\n\r\n"));
+    lp.println(F(" HTTP/1.1\r\n"
+              "Host: lp.vk.com\r\n"
+              "User-Agent: Espressif\r\n"
+              "Connection: Keep-alive\r\n\r\n"));
 
     char* events = readHTTPResponse(lp);
     if (events == NULL) return false;
@@ -174,9 +180,17 @@ bool VKAPI::longPoll()
 
     deserializeJson(eventsJson, events);
     // ошибки 2 или 3 - необходимость обновления ключа Long Poll
-    if (eventsJson["failed"] == 2 || eventsJson["failed"] == 3) updateLongPoll();
+    if (eventsJson["failed"] == 2 || eventsJson["failed"] == 3) return updateLongPoll();
     // в остальном требуется не забывать каждый раз обновлять значение ts
-    else ts = eventsJson["ts"];
+    else {
+        if (!eventsJson.containsKey("ts")) {
+            debug->println(F("[ERROR] Something went wrong... can't get new TS value"));
+            delete[] events;
+
+            return false;
+        }
+        ts = eventsJson["ts"];
+    }
 
     for (JsonObjectConst event : eventsJson["updates"].as<JsonArrayConst>()) {
         lp_callback(event);
@@ -208,8 +222,13 @@ char* VKAPI::readHTTPResponse(Stream& str)
         return NULL;
     }
 
-    // выделяем память под принятые данные
+    // выделяем буфер под принятые данные
     char* received = new char[cLength + 1];
+    if (received == NULL) {
+        debug->println(F("[ERROR] Can't allocate memory for response..."));
+        return NULL;
+    }
+    // .. и сохраняем их туда
     for (uint16_t i = 0; i < cLength; i++) {
         while (!str.available())
             yield();
@@ -219,15 +238,4 @@ char* VKAPI::readHTTPResponse(Stream& str)
     // нуль-терминатор в конец строки
     received[cLength] = '\0';
     return received;
-}
-
-// на что только не пойдёшь ради избегания преобразования числа в строку для измерения его длины...
-uint8_t VKAPI::countDigits(uint32_t number)
-{
-    uint8_t count = 0;
-    while (number != 0) {
-        number = number / 10;
-        count++;
-    }
-    return count;
 }
