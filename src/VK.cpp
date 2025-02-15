@@ -172,7 +172,7 @@ bool VKAPI::longPoll()
     lp.println(F(" HTTP/1.1\r\n"
               "Host: lp.vk.com\r\n"
               "User-Agent: Espressif\r\n"
-              "Connection: Keep-alive\r\n\r\n"));
+              "Connection: Keep-alive\r\n"));
 
     char* events = readHTTPResponse(lp);
     if (events == NULL) return false;
