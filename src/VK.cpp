@@ -11,6 +11,7 @@ void VKAPI::init()
 {
     api.setTrustAnchors(&globalsign);
     lp.setTrustAnchors(&globalsign);
+    skipHistory = true;
 
     // применить оптимизации, если возможно
     if (api.probeMaxFragmentLength("api.vk.com", 443, 512)) {
@@ -188,9 +189,11 @@ bool VKAPI::longPoll()
         ts = eventsJson["ts"];
     }
 
-    for (JsonObjectConst event : eventsJson["updates"].as<JsonArrayConst>()) {
-        lp_callback(event);
-    }
+    if (!skipHistory) {
+        for (JsonObjectConst event : eventsJson["updates"].as<JsonArrayConst>()) {
+            lp_callback(event);
+        }
+    } else if (eventsJson["failed"] != 1) skipHistory = false;
 
     delete[] events;
     return true;

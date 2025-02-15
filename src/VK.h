@@ -21,8 +21,6 @@ class VKAPI
     }
 
   private:
-    //bool apiStart(const char* method, uint16_t cLength = 0);
-    //void apiEndGET(uint16_t cLength = 0);
     enum class Method { GET, POST };
     bool apiRequest(Method m, const char* method, const char* args);
     bool updateLongPoll();
@@ -39,4 +37,5 @@ class VKAPI
     uint32_t ts;
 
     Stream* debug;
+    bool skipHistory;
 };
