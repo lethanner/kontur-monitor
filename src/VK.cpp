@@ -98,7 +98,6 @@ bool VKAPI::updateLongPoll()
 {
     debug->println(F("[INFO] Requesting new Long Poll server..."));
     memset(lprequest, '\0', 300);
-    strcpy(lprequest, "GET ");
 
     char request[21];
     snprintf(request, 21, "group_id=%u", group_id);
@@ -132,10 +131,9 @@ bool VKAPI::updateLongPoll()
     }
 
     const char* server = new_lp["response"]["server"];
-    strcat(lprequest, (server + 17));  // срезать https://lp.vk.com из начала строки (с помощью сдвига указателя)
-    strcat(lprequest, "?act=a_check&key=");
-    strcat(lprequest, new_lp["response"]["key"]);
-    strcat(lprequest, "&wait=25&ts=");
+    const char* key = new_lp["response"]["key"];
+    // сформировать запрос, срезая https://lp.vk.com из начала строки (с помощью сдвига указателя)
+    snprintf(lprequest, 300, "GET %s?act=a_check&key=%s&wait=25&ts=", server + 17, key);
     ts = new_lp["response"]["ts"];
 
     debug->print(F("[DEBUG] "));
