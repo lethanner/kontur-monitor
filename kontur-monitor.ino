@@ -7,6 +7,7 @@
 #include "TZ.h"
 #include "src/VK.h"
 #include "src/cretendials.h"
+#include "src/buzz.h"
 
 VKAPI vk(access_token, group_id, &Serial);
 time_t lastChangeTime = 0;
@@ -19,20 +20,6 @@ static const char* default_button =
 
 static const char* green = "🟢 Клуб открыт.";
 static const char* red = "🔴 Клуб закрыт.";
-
-static const uint16_t startupBuzz[4][2] = {
-    { 500,  100 },
-    { 1000, 100 },
-    { 1500, 100 },
-    { 2000, 100 }
-};
-
-static const uint16_t reminderBuzz[4][2] = {
-    { 1000, 100 },
-    { 2000, 100 },
-    { 1000, 100 },
-    { 2000, 100 }
-};
 
 void buzz(const uint16_t table[][2], const uint8_t length)
 {
@@ -72,7 +59,7 @@ IRAM_ATTR void toggleKonturState()
     digitalWrite(LED_PIN, openFlag);
     lastChangeTime = time(nullptr);
 
-    tone(TONE_PIN, openFlag ? 900 : 500, 250);
+    tone(TONE_PIN, openFlag ? Buzz::bootOK : Buzz::failed, 250);
     delay(250);  // от дребезга кнопки
 }
 
@@ -82,7 +69,7 @@ void setup()
     pinMode(LED_PIN, OUTPUT);
     pinMode(BTN_PIN, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(BTN_PIN), toggleKonturState, FALLING);
-    buzz(startupBuzz, 4);
+    buzz(Buzz::startup, 4);
 
     Serial.begin(74880);
     Serial.println(F("\r\nKontur monitoring system v.1.0\r\n"
