@@ -178,7 +178,7 @@ bool VKAPI::longPoll()
     // в остальном требуется не забывать каждый раз обновлять значение ts
     else ts = eventsJson["ts"];
 
-    for (JsonObjectConst event: eventsJson["updates"].as<JsonArrayConst>()) {
+    for (JsonObjectConst event : eventsJson["updates"].as<JsonArrayConst>()) {
         lp_callback(event);
     }
 

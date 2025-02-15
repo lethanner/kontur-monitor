@@ -21,26 +21,26 @@ static const char* green = "🟢 Клуб открыт.";
 static const char* red = "🔴 Клуб закрыт.";
 
 static const uint16_t startupBuzz[4][2] = {
-	{500, 100},
-	{1000, 100},
-	{1500, 100},
-	{2000, 100}
+    { 500,  100 },
+    { 1000, 100 },
+    { 1500, 100 },
+    { 2000, 100 }
 };
 
 static const uint16_t reminderBuzz[4][2] = {
-	{1000, 100},
-	{2000, 100},
-	{1000, 100},
-	{2000, 100}
+    { 1000, 100 },
+    { 2000, 100 },
+    { 1000, 100 },
+    { 2000, 100 }
 };
 
 void buzz(const uint16_t table[][2], const uint8_t length)
 {
-	for (uint8_t i = 0; i < length; i++) {
-		tone(TONE_PIN, table[i][0], table[i][1]);
-		delay(table[i][1]);
-	}
-	noTone(TONE_PIN);
+    for (uint8_t i = 0; i < length; i++) {
+        tone(TONE_PIN, table[i][0], table[i][1]);
+        delay(table[i][1]);
+    }
+    noTone(TONE_PIN);
 }
 
 void processEvent(JsonObjectConst event)
@@ -55,13 +55,12 @@ void processEvent(JsonObjectConst event)
         Serial.printf("[MESSAGE] From id%u: %s\r\n", from_id, text);
         //vk.sendMessage(from_id, "Привет! Говорит ESP8266.");
 
-        if (strncmp(text, "Клуб открыт", 21) == 0 ||
-            strncmp(text, "клуб открыт", 21) == 0) {
+        if (strncmp(text, "Клуб открыт", 21) == 0 || strncmp(text, "клуб открыт", 21) == 0) {
             char reply[256];
             struct tm* _now = localtime(&lastChangeTime);
 
-            snprintf(reply, 256, "%s\r\nИнформация актуальна на %i:%i:%i", openFlag ? green : red,
-                     _now->tm_hour, _now->tm_min, _now->tm_sec);
+            snprintf(reply, 256, "%s\r\nИнформация актуальна на %i:%i:%i",
+                     openFlag ? green : red, _now->tm_hour, _now->tm_min, _now->tm_sec);
             vk.sendMessage(from_id, reply, default_button);
         }
     }
@@ -69,21 +68,21 @@ void processEvent(JsonObjectConst event)
 
 IRAM_ATTR void toggleKonturState()
 {
-	openFlag = !openFlag;
-	digitalWrite(LED_PIN, openFlag);
-	lastChangeTime = time(nullptr);
+    openFlag = !openFlag;
+    digitalWrite(LED_PIN, openFlag);
+    lastChangeTime = time(nullptr);
 
-	tone(TONE_PIN, openFlag ? 900 : 500, 250);
-	delay(250); // от дребезга кнопки
+    tone(TONE_PIN, openFlag ? 900 : 500, 250);
+    delay(250);  // от дребезга кнопки
 }
 
 void setup()
 {
-	pinMode(TONE_PIN, OUTPUT);
-	pinMode(LED_PIN, OUTPUT);
-	pinMode(BTN_PIN, INPUT_PULLUP);
-	attachInterrupt(digitalPinToInterrupt(BTN_PIN), toggleKonturState, FALLING);
-	buzz(startupBuzz, 4);
+    pinMode(TONE_PIN, OUTPUT);
+    pinMode(LED_PIN, OUTPUT);
+    pinMode(BTN_PIN, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(BTN_PIN), toggleKonturState, FALLING);
+    buzz(startupBuzz, 4);
 
     Serial.begin(74880);
     Serial.println(F("\r\nKontur monitoring system v.1.0\r\n"
@@ -94,7 +93,7 @@ void setup()
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
     while (WiFi.status() != WL_CONNECTED) {
-		digitalWrite(LED_PIN, !digitalRead(LED_PIN));
+        digitalWrite(LED_PIN, !digitalRead(LED_PIN));
         delay(125);
     }
     Serial.println(WiFi.localIP());
@@ -105,7 +104,7 @@ void setup()
     time_t now = time(nullptr);
     while (now < 1000000000) {
         now = time(nullptr);
-		digitalWrite(LED_PIN, !digitalRead(LED_PIN));
+        digitalWrite(LED_PIN, !digitalRead(LED_PIN));
         delay(250);
     }
     Serial.println(now);
@@ -113,10 +112,7 @@ void setup()
     vk.init();
     vk.setIncomingMessagesCallback(&processEvent);
 
-	toggleKonturState();
+    toggleKonturState();
 }
 
-void loop()
-{
-    vk.longPoll();
-}
+void loop() { vk.longPoll(); }
