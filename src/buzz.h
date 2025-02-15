@@ -15,4 +15,6 @@ namespace Buzz {
     
     static const uint16_t bootOK = 900;
     static const uint16_t failed = 500;
+    static const uint16_t disabled = 400;
+    static const uint16_t enabled = 2500;
 }

@@ -11,7 +11,7 @@
 
 VKAPI vk(access_token, group_id, &Serial);
 time_t lastChangeTime = 0;
-bool openFlag = false;
+bool openFlag = true;
 
 // эксплуатируем кнопку без payload, просто проверяя её текст
 // в данном случае делать payload нет никакого смысла
@@ -59,7 +59,7 @@ IRAM_ATTR void toggleKonturState()
     digitalWrite(LED_PIN, openFlag);
     lastChangeTime = time(nullptr);
 
-    tone(TONE_PIN, openFlag ? Buzz::bootOK : Buzz::failed, 250);
+    tone(TONE_PIN, openFlag ? Buzz::enabled : Buzz::disabled, 250);
     delay(250);  // от дребезга кнопки
 }
 
@@ -99,7 +99,28 @@ void setup()
     vk.init();
     vk.setIncomingMessagesCallback(&processEvent);
 
-    toggleKonturState();
+    // делаем три попытки установить связь с сервером Long Poll
+    // если не удаётся - всё, извините, halt
+    for (byte i = 0; i < 3; i++) {
+        if (vk.longPoll()) break;
+        else if (i == 2) {
+            Serial.println(F("[ERROR] Failed to get Long Poll server after 3 attempts. System halted."));
+            while (1) { yield(); }
+        }
+    }
+
+    tone(TONE_PIN, Buzz::bootOK, 250);
+    digitalWrite(LED_PIN, true);
+    lastChangeTime = time(nullptr);
 }
 
-void loop() { vk.longPoll(); }
+void loop() {
+    static byte fail_count = 0;
+
+    if (!vk.longPoll()) {
+        if (++fail_count > 3) {
+            Serial.println(F("[ERROR] Communications epic fail. System halted."));
+            while (1) { yield(); }
+        }    
+    } else fail_count = 0;
+}

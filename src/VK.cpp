@@ -124,12 +124,10 @@ bool VKAPI::updateLongPoll()
         // если это косяк именно нового адреса, но при этом ответ от сервера нормальный, то
         // блокируем дальнейшую работу до обновления ПО
         // P.S. я надеюсь, что я нормально сделаю автоподстройку адреса раньше, чем ВК что-то обновит...
-        // clang-format off
         if (new_lp.containsKey("response")) {
             debug->println(F("[ERROR] Software update required. System halted."));
             while (1) { yield(); }
         }
-        // clang-format on
         return false;
     }
 
@@ -170,9 +168,9 @@ bool VKAPI::longPoll()
     lp.print(lprequest);
     lp.print(ts);
     lp.println(F(" HTTP/1.1\r\n"
-              "Host: lp.vk.com\r\n"
-              "User-Agent: Espressif\r\n"
-              "Connection: Keep-alive\r\n"));
+                 "Host: lp.vk.com\r\n"
+                 "User-Agent: Espressif\r\n"
+                 "Connection: Keep-alive\r\n"));
 
     char* events = readHTTPResponse(lp);
     if (events == NULL) return false;
@@ -230,8 +228,7 @@ char* VKAPI::readHTTPResponse(Stream& str)
     }
     // .. и сохраняем их туда
     for (uint16_t i = 0; i < cLength; i++) {
-        while (!str.available())
-            yield();
+        while (!str.available()) yield();
         received[i] = str.read();
     }
 
