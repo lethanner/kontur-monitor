@@ -1,13 +1,9 @@
-#define TONE_PIN 4
-#define BTN_PIN 5
-#define DETECT_PIN 9
-#define LED_PIN 10
-
 #include "ESP8266WiFi.h"
 #include "TZ.h"
 #include "src/VK.h"
 #include "src/cretendials.h"
 #include "src/buzz.h"
+#include "src/pins.h"
 
 VKAPI vk(access_token, group_id, &Serial);
 time_t lastChangeTime = 0;
@@ -28,6 +24,21 @@ void buzz(const uint16_t table[][2], const uint8_t length)
         delay(table[i][1]);
     }
     noTone(TONE_PIN);
+}
+
+void terminate()
+{
+    detachInterrupt(digitalPinToInterrupt(BTN_PIN));
+    digitalWrite(LED_PIN, 0);
+    // после неудачных попыток восстановления связи следует замораживание системы
+    // с периодическим звуковым сигналом. спустя 5 минут - автоперезагрузка
+    Serial.println(F("[ERROR] Communications epic fail. System halted."));
+    byte autoRestartCounter = 0;
+    while (1) {
+        if (++autoRestartCounter > 5) ESP.restart();
+        Buzz::sos();
+        delay(3000);
+    }
 }
 
 void processEvent(JsonObjectConst event)
@@ -68,7 +79,6 @@ void setup()
     pinMode(TONE_PIN, OUTPUT);
     pinMode(LED_PIN, OUTPUT);
     pinMode(BTN_PIN, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(BTN_PIN), toggleKonturState, FALLING);
     buzz(Buzz::startup, 4);
 
     Serial.begin(74880);
@@ -79,7 +89,16 @@ void setup()
     Serial.print(F("[WiFi] Waiting for connection..."));
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
+    uint16_t connect_counter = 0;
+
     while (WiFi.status() != WL_CONNECTED) {
+        // если установка связи с wi-fi затягивается на 30 секунд - периодический звуковой сигнал
+        if (++connect_counter > 240 && connect_counter % 24 == 0) Buzz::warning();
+        // если затянулась уже примерно на 5 минут - остановка
+        // ПС: да, я не учёл задержку от функции warning()
+        else if (connect_counter > 2400) terminate();
+
+        // мигание светодиодиком
         digitalWrite(LED_PIN, !digitalRead(LED_PIN));
         delay(125);
     }
@@ -103,24 +122,25 @@ void setup()
     // если не удаётся - всё, извините, halt
     for (byte i = 0; i < 3; i++) {
         if (vk.longPoll()) break;
-        else if (i == 2) {
-            Serial.println(F("[ERROR] Failed to get Long Poll server after 3 attempts. System halted."));
-            while (1) { yield(); }
-        }
+        else if (i == 2) terminate();
+        Buzz::warning();
     }
 
     tone(TONE_PIN, Buzz::bootOK, 250);
     digitalWrite(LED_PIN, true);
     lastChangeTime = time(nullptr);
+
+    attachInterrupt(digitalPinToInterrupt(BTN_PIN), toggleKonturState, FALLING);
 }
 
-void loop() {
+void loop()
+{
     static byte fail_count = 0;
 
+    // спокойно опрашиваем сервер ВК на предмет новых сообщений.
+    // если 3 подряд неудачные попытки связи - останавливаем работу
     if (!vk.longPoll()) {
-        if (++fail_count > 3) {
-            Serial.println(F("[ERROR] Communications epic fail. System halted."));
-            while (1) { yield(); }
-        }    
+        Buzz::warning();
+        if (++fail_count > 3) terminate();
     } else fail_count = 0;
 }

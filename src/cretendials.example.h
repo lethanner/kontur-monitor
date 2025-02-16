@@ -1,3 +1,4 @@
+#pragma once
 // пример заполнения cretendials.h
 const char* ssid = "VasyaPupkinWiFi";
 const char* password = "MakeKonturGreatAgain";
