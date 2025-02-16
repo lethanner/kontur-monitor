@@ -70,7 +70,10 @@ int VKAPI::sendMessage(uint32_t peer_id, const char* text, const char* keyboard)
 
     // сформировать запрос, выслать на сервер
     snprintf(data, length, "random_id=0&peer_id=%u&keyboard=%s&message=%s", peer_id, keyboard, text);
-    apiRequest(Method::POST, "messages.send", data);
+    if (!apiRequest(Method::POST, "messages.send", data)) {
+        delete[] data;
+        return -1;
+    }
     delete[] data;
 
     // получить результат
@@ -102,13 +105,11 @@ bool VKAPI::updateLongPoll()
 
     char request[21];
     snprintf(request, 21, "group_id=%u", group_id);
-    apiRequest(Method::GET, "groups.getLongPollServer", request);
+    if (!apiRequest(Method::GET, "groups.getLongPollServer", request)) return false;
 
     char* response = readHTTPResponse(api);
-    if (response == NULL) {
-        debug->println(F("failed!"));
-        return false;
-    }
+    if (response == NULL) return false;
+
     debug->print(F("[DEBUG] "));
     debug->println(response);
 
