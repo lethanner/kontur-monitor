@@ -8,6 +8,7 @@
 VKAPI vk(access_token, group_id, &Serial);
 time_t lastChangeTime = 0;
 bool openFlag = true;
+volatile bool buttonPress = false;
 
 // эксплуатируем кнопку без payload, просто проверяя её текст
 // в данном случае делать payload нет никакого смысла
@@ -66,12 +67,10 @@ void processEvent(JsonObjectConst event)
 
 IRAM_ATTR void toggleKonturState()
 {
-    openFlag = !openFlag;
-    digitalWrite(LED_PIN, openFlag);
-    lastChangeTime = time(nullptr);
+    if (buttonPress) return;
 
-    tone(TONE_PIN, openFlag ? Buzz::enabled : Buzz::disabled, 250);
-    delay(250);  // от дребезга кнопки
+    buttonPress = true;
+    tone(TONE_PIN, openFlag ? Buzz::disabled : Buzz::enabled, 250);
 }
 
 void setup()
@@ -143,4 +142,13 @@ void loop()
         Buzz::warning();
         if (++fail_count > 3) terminate();
     } else fail_count = 0;
+
+    // обрабатываем кнопочку
+    if (buttonPress) {
+        openFlag = !openFlag;
+        digitalWrite(LED_PIN, openFlag);
+        lastChangeTime = time(nullptr);
+
+        buttonPress = false;
+    }
 }
