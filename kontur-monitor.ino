@@ -36,7 +36,7 @@ void terminate()
     Serial.println(F("[ERROR] Communications epic fail. System halted."));
     byte autoRestartCounter = 0;
     while (1) {
-        if (++autoRestartCounter > 5) ESP.restart();
+        if (++autoRestartCounter > 100) ESP.restart();
         Buzz::sos();
         delay(3000);
     }
@@ -88,14 +88,14 @@ void setup()
     Serial.print(F("[WiFi] Waiting for connection..."));
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
-    uint16_t connect_counter = 0;
+    uint16_t attempt_counter = 0;
 
     while (WiFi.status() != WL_CONNECTED) {
         // если установка связи с wi-fi затягивается на 30 секунд - периодический звуковой сигнал
-        if (++connect_counter > 240 && connect_counter % 24 == 0) Buzz::warning();
+        if (++attempt_counter > 240 && attempt_counter % 24 == 0) Buzz::warning();
         // если затянулась уже примерно на 5 минут - остановка
         // ПС: да, я не учёл задержку от функции warning()
-        else if (connect_counter > 2400) terminate();
+        else if (attempt_counter > 2400) terminate();
 
         // мигание светодиодиком
         digitalWrite(LED_PIN, !digitalRead(LED_PIN));
@@ -103,6 +103,7 @@ void setup()
     }
     Serial.println(WiFi.localIP());
 
+    attempt_counter = 0;
     // синхронизация часов по NTP
     Serial.print(F("[NTP] Waiting for time..."));
     configTime(TZ_Europe_Samara, 0, "pool.ntp.org", "ntp0.ntp-servers.net");
@@ -110,6 +111,9 @@ void setup()
     while (now < 1000000000) {
         now = time(nullptr);
         digitalWrite(LED_PIN, !digitalRead(LED_PIN));
+        // аналогичные варнинги, как при подключении к вайфаю
+        if (++attempt_counter > 120 && attempt_counter % 12 == 0) Buzz::warning();
+        if (attempt_counter > 1200) terminate();
         delay(250);
     }
     Serial.println(now);
