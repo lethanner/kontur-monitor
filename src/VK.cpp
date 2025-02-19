@@ -79,6 +79,11 @@ int VKAPI::sendMessage(uint32_t peer_id, const char* text, const char* keyboard)
     // получить результат
     int result = -1;
     char* response = readHTTPResponse(api);
+	if (response == NULL) {
+		api.stop();
+		return result;
+	}
+
     StaticJsonDocument<64> responseJson;
     deserializeJson(responseJson, response);
 
@@ -108,7 +113,10 @@ bool VKAPI::updateLongPoll()
     if (!apiRequest(Method::GET, "groups.getLongPollServer", request)) return false;
 
     char* response = readHTTPResponse(api);
-    if (response == NULL) return false;
+    if (response == NULL) {
+		api.stop();
+		return false;
+	}
 
     debug->print(F("[DEBUG] "));
     debug->println(response);
@@ -173,7 +181,10 @@ bool VKAPI::longPoll()
                  "Connection: Keep-alive\r\n"));
 
     char* events = readHTTPResponse(lp);
-    if (events == NULL) return false;
+    if (events == NULL) { 
+		lp.stop();
+		return false;
+	}
     debug->println(events);
 
     deserializeJson(eventsJson, events);
