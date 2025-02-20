@@ -87,6 +87,7 @@ void setup()
     // подключение к wi-fi
     Serial.print(F("[WiFi] Waiting for connection..."));
     WiFi.mode(WIFI_STA);
+    WiFi.setAutoReconnect(true);
     WiFi.begin(ssid, password);
     uint16_t attempt_counter = 0;
 
@@ -146,6 +147,16 @@ void loop()
         Buzz::warning();
         if (++fail_count > 3) terminate();
     } else fail_count = 0;
+
+    // если вдруг пропала связь с wi-fi - пищим и подмигиваем диодиком
+    // а после 3 минут отсутствия связи - terminate
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(2000);
+        if (++fail_count > 90) terminate();
+        digitalWrite(LED_PIN, !openFlag);
+        Buzz::warning();
+        digitalWrite(LED_PIN, openFlag);
+    }
 
     // обрабатываем кнопочку
     if (buttonPress) {
