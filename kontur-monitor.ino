@@ -7,7 +7,7 @@
 
 VKAPI vk(access_token, group_id, &Serial);
 //time_t lastChangeTime = 0;
-bool openFlag = true;
+bool openFlag = false;
 volatile bool buttonPress = false;
 
 // эксплуатируем кнопку без payload, просто проверяя её текст
@@ -161,7 +161,7 @@ void setup()
     vk.sendMessage(sa_dialog_id, startup_msg);
 
     tone(TONE_PIN, Buzz::bootOK, 250);
-    digitalWrite(LED_PIN, true);
+    digitalWrite(LED_PIN, false);
     //lastChangeTime = time(nullptr);
 
     attachInterrupt(digitalPinToInterrupt(BTN_PIN), toggleKonturState, FALLING);
