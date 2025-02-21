@@ -14,11 +14,13 @@ void VKAPI::init()
     skipHistory = true;
 
     // применить оптимизации, если возможно
-    if (api.probeMaxFragmentLength("api.vk.com", 443, 512)) {
+    mfln_status[0] = api.probeMaxFragmentLength("api.vk.com", 443, 512);
+    mfln_status[1] = lp.probeMaxFragmentLength("lp.vk.com", 443, 512);
+    if (mfln_status[0]) {
         api.setBufferSizes(512, 512);
         debug->println(F("[INFO] api.vk.com supporting MFLN."));
     }
-    if (lp.probeMaxFragmentLength("lp.vk.com", 443, 512)) {
+    if (mfln_status[1]) {
         lp.setBufferSizes(512, 512);
         debug->println(F("[INFO] lp.vk.com supporting MFLN."));
     }
@@ -79,10 +81,10 @@ int VKAPI::sendMessage(uint32_t peer_id, const char* text, const char* keyboard)
     // получить результат
     int result = -1;
     char* response = readHTTPResponse(api);
-	if (response == NULL) {
-		api.stop();
-		return result;
-	}
+    if (response == NULL) {
+        api.stop();
+        return result;
+    }
 
     StaticJsonDocument<64> responseJson;
     deserializeJson(responseJson, response);
@@ -114,9 +116,9 @@ bool VKAPI::updateLongPoll()
 
     char* response = readHTTPResponse(api);
     if (response == NULL) {
-		api.stop();
-		return false;
-	}
+        api.stop();
+        return false;
+    }
 
     debug->print(F("[DEBUG] "));
     debug->println(response);
@@ -155,8 +157,8 @@ bool VKAPI::updateLongPoll()
 
 bool VKAPI::longPoll()
 {
-    debug->print(F("[DEBUG] Free heap: "));
-    debug->println(ESP.getFreeHeap());
+    // debug->print(F("[DEBUG] Free heap: "));
+    // debug->println(ESP.getFreeHeap());
 
     if (strlen(lprequest) < 1) return updateLongPoll();
 
@@ -181,10 +183,10 @@ bool VKAPI::longPoll()
                  "Connection: Keep-alive\r\n"));
 
     char* events = readHTTPResponse(lp);
-    if (events == NULL) { 
-		lp.stop();
-		return false;
-	}
+    if (events == NULL) {
+        lp.stop();
+        return false;
+    }
     debug->println(events);
 
     deserializeJson(eventsJson, events);

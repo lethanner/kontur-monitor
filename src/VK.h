@@ -19,6 +19,8 @@ class VKAPI
     {
         lp_callback = callback;
     }
+    bool getLpMFLNStatus() { return mfln_status[1]; }
+    bool getApiMFLNStatus() { return mfln_status[0]; }
 
   private:
     enum class Method { GET, POST };
@@ -38,4 +40,5 @@ class VKAPI
 
     Stream* debug;
     bool skipHistory;
+    bool mfln_status[2];
 };

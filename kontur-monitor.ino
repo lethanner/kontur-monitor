@@ -6,7 +6,7 @@
 #include "src/pins.h"
 
 VKAPI vk(access_token, group_id, &Serial);
-time_t lastChangeTime = 0;
+//time_t lastChangeTime = 0;
 bool openFlag = true;
 volatile bool buttonPress = false;
 
@@ -15,8 +15,11 @@ volatile bool buttonPress = false;
 static const char* default_button =
  "{\"buttons\": [[{\"action\": {\"type\": \"text\", \"label\": \"Клуб открыт?\"}}]]}";
 
-static const char* green = "🟢 Клуб открыт.";
-static const char* red = "🔴 Клуб закрыт.";
+static const char* green = "🟢 Да, клуб открыт! Приходи.";
+static const char* red = "🔴 Клуб закрыт. :(";
+
+// счётчики ошибок
+byte fail_counter[2];
 
 void buzz(const uint16_t table[][2], const uint8_t length)
 {
@@ -48,19 +51,34 @@ void processEvent(JsonObjectConst event)
     const char* type = event["type"];
     if (strcmp(type, "message_new") == 0) {
         uint32_t from_id = event["object"]["message"]["from_id"];
+        uint32_t peer_id = event["object"]["message"]["peer_id"];
         const char* text = event["object"]["message"]["text"];
         //const char* payload = event["object"]["message"]["payload"];
 
         Serial.printf("[MESSAGE] From id%u: %s\r\n", from_id, text);
-        //vk.sendMessage(from_id, "Привет! Говорит ESP8266.");
 
+        // ответ на сообщение "клуб открыт?"
+        // PS: фиг там, а не strcasecmp - ибо юникод
         if (strncmp(text, "Клуб открыт", 21) == 0 || strncmp(text, "клуб открыт", 21) == 0) {
-            char reply[256];
-            struct tm* _now = localtime(&lastChangeTime);
-
-            snprintf(reply, 256, "%s\r\nИнформация актуальна на %i:%i:%i",
-                     openFlag ? green : red, _now->tm_hour, _now->tm_min, _now->tm_sec);
-            vk.sendMessage(from_id, reply, default_button);
+            //time_t diff = time(nullptr) - lastChangeTime;
+            vk.sendMessage(peer_id, openFlag ? green : red, default_button);
+        }
+        // ответ на запрос состояния бота
+        else if (strcmp(text, "/status") == 0) {
+            char reply[128];
+            snprintf_P(
+             reply, 256,
+             PSTR("uptime: %u s\r\n"
+                  "wi-fi rssi: %i dBm\r\n"
+                  "wi-fi errors: %u\r\n"
+                  "request errors: %u\r\n"
+                  "free heap: %u bytes\r\n"),
+             millis() / 1000, WiFi.RSSI(), fail_counter[1], fail_counter[0], ESP.getFreeHeap());
+            vk.sendMessage(peer_id, reply, default_button);
+        }
+        // команда для удалённой перезагрузки (только для админского чата)
+        else if (strcmp(text, "/reboot") == 0 && peer_id == sa_dialog_id) {
+            ESP.restart();
         }
     }
 }
@@ -75,6 +93,10 @@ IRAM_ATTR void toggleKonturState()
 
 void setup()
 {
+	rst_info* resetInfo;
+    resetInfo = ESP.getResetInfoPtr();
+    uint32_t startup_counter = millis();
+
     pinMode(TONE_PIN, OUTPUT);
     pinMode(LED_PIN, OUTPUT);
     pinMode(BTN_PIN, INPUT_PULLUP);
@@ -122,35 +144,60 @@ void setup()
     vk.init();
     vk.setIncomingMessagesCallback(&processEvent);
 
-    // делаем три попытки установить связь с сервером Long Poll
+    // делаем пять попыток установить связь с сервером Long Poll
     // если не удаётся - всё, извините, halt
-    for (byte i = 0; i < 3; i++) {
+    for (byte i = 0; i < 5; i++) {
         if (vk.longPoll()) break;
         else if (i == 2) terminate();
         Buzz::warning();
     }
 
+    // отправить админам сообщение об инициализации
+    char startup_msg[100];
+    snprintf_P(
+     startup_msg, 100, PSTR("успешный запуск: %u мс\r\nmfln: %d/%d\r\nrst reason: %u"),
+     millis() - startup_counter, vk.getApiMFLNStatus(), vk.getLpMFLNStatus(), resetInfo->reason
+	);
+    vk.sendMessage(sa_dialog_id, startup_msg);
+
     tone(TONE_PIN, Buzz::bootOK, 250);
     digitalWrite(LED_PIN, true);
-    lastChangeTime = time(nullptr);
+    //lastChangeTime = time(nullptr);
 
     attachInterrupt(digitalPinToInterrupt(BTN_PIN), toggleKonturState, FALLING);
 }
 
 void loop()
 {
-    static byte fail_count = 0;
+    static byte fail_count = 0, fail_flag = 0;
+
+    // сообщения об ошибках
+    if (fail_flag > 0 && fail_count == 0) {
+        char msg[100];
+        switch (fail_flag) {
+        case 1:
+            strcpy_P(msg, PSTR("боту стало худо, но он смог прекратить свои страдания."));
+            break;
+        case 2: strcpy_P(msg, PSTR("кратковременный сбой wi-fi")); break;
+        }
+
+        vk.sendMessage(sa_dialog_id, msg);
+        fail_counter[fail_flag - 1]++;
+        fail_flag = 0;
+    }
 
     // спокойно опрашиваем сервер ВК на предмет новых сообщений.
-    // если 3 подряд неудачные попытки связи - останавливаем работу
+    // если 5 подряд неудачных попыток связи - останавливаем работу
     if (!vk.longPoll()) {
+        fail_flag = 1;
         Buzz::warning();
-        if (++fail_count > 3) terminate();
+        if (++fail_count > 5) terminate();
     } else fail_count = 0;
 
     // если вдруг пропала связь с wi-fi - пищим и подмигиваем диодиком
     // а после 3 минут отсутствия связи - terminate
     while (WiFi.status() != WL_CONNECTED) {
+        fail_flag = 2;
         delay(2000);
         if (++fail_count > 90) terminate();
         digitalWrite(LED_PIN, !openFlag);
@@ -162,7 +209,7 @@ void loop()
     if (buttonPress) {
         openFlag = !openFlag;
         digitalWrite(LED_PIN, openFlag);
-        lastChangeTime = time(nullptr);
+        //lastChangeTime = time(nullptr);
 
         buttonPress = false;
     }
