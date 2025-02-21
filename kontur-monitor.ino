@@ -59,7 +59,7 @@ void processEvent(JsonObjectConst event)
 
         // ответ на сообщение "клуб открыт?"
         // PS: фиг там, а не strcasecmp - ибо юникод
-        if (strncmp(text, "Клуб открыт", 21) == 0 || strncmp(text, "клуб открыт", 21) == 0) {
+        if (strstr(text, "Клуб открыт") != NULL || strstr(text, "клуб открыт") != NULL) {
             //time_t diff = time(nullptr) - lastChangeTime;
             vk.sendMessage(peer_id, openFlag ? green : red, default_button);
         }
