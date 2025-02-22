@@ -11,7 +11,6 @@ void VKAPI::init()
 {
     api.setTrustAnchors(&globalsign);
     lp.setTrustAnchors(&globalsign);
-    skipHistory = true;
 
     // применить оптимизации, если возможно
     mfln_status[0] = api.probeMaxFragmentLength("api.vk.com", 443, 512);
@@ -200,14 +199,16 @@ bool VKAPI::longPoll()
 
             return false;
         }
-        ts = eventsJson["ts"];
+        // так как ВК иногда отдаёт старое значение ts при обновлении сервера LP,
+        // пропускаем обработку событий при аномальной разности между текущим и новым ts 
+        uint32_t new_ts = eventsJson["ts"];
+        if (eventsJson["failed"] != 1 && (new_ts - ts < 2)) {
+            for (JsonObjectConst event : eventsJson["updates"].as<JsonArrayConst>()) {
+                lp_callback(event);
+            }
+        } else debug->println(F("[WARNING] Skipping updates history."));
+        ts = new_ts;
     }
-
-    if (!skipHistory) {
-        for (JsonObjectConst event : eventsJson["updates"].as<JsonArrayConst>()) {
-            lp_callback(event);
-        }
-    } else if (eventsJson["failed"] != 1) skipHistory = false;
 
     delete[] events;
     return true;

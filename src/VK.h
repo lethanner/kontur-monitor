@@ -39,6 +39,5 @@ class VKAPI
     uint32_t ts;
 
     Stream* debug;
-    bool skipHistory;
     bool mfln_status[2];
 };
