@@ -14,6 +14,9 @@ bool openFlag = false;
 bool otaFlag = false;
 volatile bool buttonPress = false;
 
+time_t now = 0;
+struct tm* _now;
+
 // эксплуатируем кнопку без payload, просто проверяя её текст
 // в данном случае делать payload нет никакого смысла
 static const char* default_button =
@@ -72,16 +75,17 @@ void processEvent(JsonObjectConst event)
         }
         // ответ на запрос состояния бота
         else if (strcmp(text, "/status") == 0) {
-            char reply[128];
+            char reply[140];
             snprintf_P(
-             reply, 128,
-             PSTR("kontur-monitor-ota\r\n"
+             reply, 140,
+             PSTR("time: %i:%i:%i\r\n"
                   "uptime: %u s\r\n"
                   "wi-fi rssi: %i dBm\r\n"
                   "wi-fi errors: %u\r\n"
                   "request errors: %u\r\n"
                   "free heap: %u bytes\r\n"),
-             millis() / 1000, WiFi.RSSI(), fail_counter[1], fail_counter[0], ESP.getFreeHeap());
+             _now->tm_hour, _now->tm_min, _now->tm_sec, millis() / 1000, WiFi.RSSI(),
+             fail_counter[1], fail_counter[0], ESP.getFreeHeap());
             vk.sendMessage(peer_id, reply);
         }
         // команды только для админского чата
@@ -159,7 +163,7 @@ void setup()
     // синхронизация часов по NTP
     Serial.print(F("[NTP] Waiting for time..."));
     configTime(TZ_Europe_Samara, 0, "pool.ntp.org", "ntp0.ntp-servers.net");
-    time_t now = time(nullptr);
+    now = time(nullptr);
     while (now < 1000000000) {
         now = time(nullptr);
         digitalWrite(LED_PIN, !digitalRead(LED_PIN));
@@ -198,6 +202,10 @@ void setup()
 void loop()
 {
     static byte fail_count = 0, fail_flag = 0;
+
+    // часики
+    now = time(nullptr);
+    _now = localtime(&now);
 
     // переход в режим OTA
     if (otaFlag) {
@@ -266,5 +274,13 @@ void loop()
         //lastChangeTime = time(nullptr);
 
         buttonPress = false;
+    }
+
+    // автоматизация в виде автозакрытия клуба в 22:00
+    if (openFlag && _now->tm_hour >= 22 && _now->tm_hour <= 8) {
+        openFlag = false;
+        digitalWrite(LED_PIN, false);
+
+        vk.sendMessage(sa_dialog_id, "автозакрытие 22:00");
     }
 }
