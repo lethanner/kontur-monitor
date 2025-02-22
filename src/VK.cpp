@@ -200,7 +200,7 @@ bool VKAPI::longPoll()
             return false;
         }
         // так как ВК иногда отдаёт старое значение ts при обновлении сервера LP,
-        // пропускаем обработку событий при аномальной разности между текущим и новым ts 
+        // пропускаем обработку событий при аномальной разности между текущим и новым ts
         uint32_t new_ts = eventsJson["ts"];
         if (eventsJson["failed"] != 1 && (new_ts - ts < 2)) {
             for (JsonObjectConst event : eventsJson["updates"].as<JsonArrayConst>()) {

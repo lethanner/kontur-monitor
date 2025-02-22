@@ -66,8 +66,9 @@ void processEvent(JsonObjectConst event)
         if (strstr(text, "Клуб открыт") != NULL || strstr(text, "клуб открыт") != NULL) {
             //time_t diff = time(nullptr) - lastChangeTime;
             // кнопка "Клуб открыт?" будет появляться только в личках, но не в беседах
-            peer_id > 2000000000 ? vk.sendMessage(peer_id, openFlag ? green : red)
-                                 : vk.sendMessage(peer_id, openFlag ? green : red, default_button);
+            peer_id > 2000000000
+             ? vk.sendMessage(peer_id, openFlag ? green : red)
+             : vk.sendMessage(peer_id, openFlag ? green : red, default_button);
         }
         // ответ на запрос состояния бота
         else if (strcmp(text, "/status") == 0) {
@@ -108,7 +109,7 @@ IRAM_ATTR void toggleKonturState()
 
 void setup()
 {
-	rst_info* resetInfo;
+    rst_info* resetInfo;
     resetInfo = ESP.getResetInfoPtr();
     uint32_t startup_counter = millis();
 
@@ -142,12 +143,11 @@ void setup()
     Serial.println(WiFi.localIP());
 
     ArduinoOTA.onStart([]() {
-        Serial.println(F("[INFO] ArduinoOTA initialized."));
+        Serial.println(F("[INFO] Starting OTA."));
     });
     ArduinoOTA.onEnd([]() {
         Serial.println(F("[INFO] OTA update finished."));
         tone(TONE_PIN, 3000, 300);
-        delay(1000);
     });
     ArduinoOTA.onError([](ota_error_t error) {
         Serial.print(F("[ERROR] ArduinoOTA error: "));
@@ -185,8 +185,7 @@ void setup()
     char startup_msg[100];
     snprintf_P(
      startup_msg, 100, PSTR("успешный запуск: %u мс\r\nmfln: %d/%d\r\nrst reason: %u"),
-     millis() - startup_counter, vk.getApiMFLNStatus(), vk.getLpMFLNStatus(), resetInfo->reason
-	);
+     millis() - startup_counter, vk.getApiMFLNStatus(), vk.getLpMFLNStatus(), resetInfo->reason);
     vk.sendMessage(sa_dialog_id, startup_msg);
 
     tone(TONE_PIN, Buzz::bootOK, 250);
@@ -206,7 +205,7 @@ void loop()
         buzz(Buzz::ota_ready, 2);
 
         uint32_t ota_timeout = millis();
-        
+
         vk.stop();
         ArduinoOTA.begin();
         // ждём OTA с таймаутом 5 минут
@@ -259,10 +258,10 @@ void loop()
         // пять попыток отправить инфу в админский чат
         // а то вдруг чего не сработает
         for (byte i = 0; i < 5; i++) {
-          int status = vk.sendMessage(sa_dialog_id, openFlag ? "клуб открылся" : "клуб закрылся");
-          if (status > -1) break;
-          else if (i == 4) terminate();
-          else Buzz::warning();
+            int status = vk.sendMessage(sa_dialog_id, openFlag ? "клуб открылся" : "клуб закрылся");
+            if (status > -1) break;
+            else if (i == 4) terminate();
+            else Buzz::warning();
         }
         //lastChangeTime = time(nullptr);
 
