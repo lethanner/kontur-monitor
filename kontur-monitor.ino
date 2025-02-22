@@ -97,7 +97,13 @@ void processEvent(JsonObjectConst event)
             // переход в режим OTA
             else if (strcmp(text, "/ota") == 0) {
                 otaFlag = true;
-                vk.sendMessage(sa_dialog_id, "going ota, wait for audio signal");
+                //vk.sendMessage(sa_dialog_id, "going ota, wait for audio signal");
+            }
+            // удаленное изменение статуса
+            else if (strcmp(text, "/toggle") == 0) {
+                openFlag = !openFlag;
+                digitalWrite(LED_PIN, openFlag);
+                vk.sendMessage(sa_dialog_id, openFlag ? "открылось" : "закрылось");
             }
         }
     }
