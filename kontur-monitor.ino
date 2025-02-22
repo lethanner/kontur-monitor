@@ -61,7 +61,9 @@ void processEvent(JsonObjectConst event)
         // PS: фиг там, а не strcasecmp - ибо юникод
         if (strstr(text, "Клуб открыт") != NULL || strstr(text, "клуб открыт") != NULL) {
             //time_t diff = time(nullptr) - lastChangeTime;
-            vk.sendMessage(peer_id, openFlag ? green : red, default_button);
+            // кнопка "Клуб открыт?" будет появляться только в личках, но не в беседах
+            peer_id > 2000000000 ? vk.sendMessage(peer_id, openFlag ? green : red)
+                                 : vk.sendMessage(peer_id, openFlag ? green : red, default_button);
         }
         // ответ на запрос состояния бота
         else if (strcmp(text, "/status") == 0) {
@@ -74,7 +76,7 @@ void processEvent(JsonObjectConst event)
                   "request errors: %u\r\n"
                   "free heap: %u bytes\r\n"),
              millis() / 1000, WiFi.RSSI(), fail_counter[1], fail_counter[0], ESP.getFreeHeap());
-            vk.sendMessage(peer_id, reply, default_button);
+            vk.sendMessage(peer_id, reply);
         }
         // команда для удалённой перезагрузки (только для админского чата)
         else if (strcmp(text, "/reboot") == 0 && peer_id == sa_dialog_id) {
@@ -209,6 +211,14 @@ void loop()
     if (buttonPress) {
         openFlag = !openFlag;
         digitalWrite(LED_PIN, openFlag);
+        // пять попыток отправить инфу в админский чат
+        // а то вдруг чего не сработает
+        for (byte i = 0; i < 5; i++) {
+          int status = vk.sendMessage(sa_dialog_id, openFlag ? "клуб открылся" : "клуб закрылся");
+          if (status > -1) break;
+          else if (i == 4) terminate();
+          else Buzz::warning();
+        }
         //lastChangeTime = time(nullptr);
 
         buttonPress = false;
