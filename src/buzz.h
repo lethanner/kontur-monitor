@@ -16,6 +16,11 @@ namespace Buzz {
         { 2000, 100 }
     };
 
+    static const uint16_t ota_ready[2][2] = {
+        { 3000, 400 },
+        { 1000, 400 },
+    };
+
     static const uint16_t bootOK = 900;
     static const uint16_t failed = 500;
     static const uint16_t disabled = 400;

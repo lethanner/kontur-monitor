@@ -1,4 +1,7 @@
 #include "ESP8266WiFi.h"
+#include "ESP8266mDNS.h"
+#include "WiFiUdp.h"
+#include "ArduinoOTA.h"
 #include "TZ.h"
 #include "src/VK.h"
 #include "src/cretendials.h"
@@ -8,6 +11,7 @@
 VKAPI vk(access_token, group_id, &Serial);
 //time_t lastChangeTime = 0;
 bool openFlag = false;
+bool otaFlag = false;
 volatile bool buttonPress = false;
 
 // эксплуатируем кнопку без payload, просто проверяя её текст
@@ -69,8 +73,9 @@ void processEvent(JsonObjectConst event)
         else if (strcmp(text, "/status") == 0) {
             char reply[128];
             snprintf_P(
-             reply, 256,
-             PSTR("uptime: %u s\r\n"
+             reply, 128,
+             PSTR("kontur-monitor-ota\r\n"
+                  "uptime: %u s\r\n"
                   "wi-fi rssi: %i dBm\r\n"
                   "wi-fi errors: %u\r\n"
                   "request errors: %u\r\n"
@@ -78,9 +83,17 @@ void processEvent(JsonObjectConst event)
              millis() / 1000, WiFi.RSSI(), fail_counter[1], fail_counter[0], ESP.getFreeHeap());
             vk.sendMessage(peer_id, reply);
         }
-        // команда для удалённой перезагрузки (только для админского чата)
-        else if (strcmp(text, "/reboot") == 0 && peer_id == sa_dialog_id) {
-            ESP.restart();
+        // команды только для админского чата
+        else if (peer_id == sa_dialog_id) {
+            // удаленная перезагрузка
+            if (strcmp(text, "/reboot") == 0) {
+                ESP.restart();
+            }
+            // переход в режим OTA
+            else if (strcmp(text, "/ota") == 0) {
+                otaFlag = true;
+                vk.sendMessage(sa_dialog_id, "going ota, wait for audio signal");
+            }
         }
     }
 }
@@ -128,6 +141,20 @@ void setup()
     }
     Serial.println(WiFi.localIP());
 
+    ArduinoOTA.onStart([]() {
+        Serial.println(F("[INFO] ArduinoOTA initialized."));
+    });
+    ArduinoOTA.onEnd([]() {
+        Serial.println(F("[INFO] OTA update finished."));
+        tone(TONE_PIN, 3000, 300);
+        delay(1000);
+    });
+    ArduinoOTA.onError([](ota_error_t error) {
+        Serial.print(F("[ERROR] ArduinoOTA error: "));
+        Serial.println(error);
+        Buzz::sos();
+    });
+
     attempt_counter = 0;
     // синхронизация часов по NTP
     Serial.print(F("[NTP] Waiting for time..."));
@@ -172,6 +199,24 @@ void setup()
 void loop()
 {
     static byte fail_count = 0, fail_flag = 0;
+
+    // переход в режим OTA
+    if (otaFlag) {
+        Serial.println(F("[INFO] Halting for OTA mode."));
+        buzz(Buzz::ota_ready, 2);
+
+        uint32_t ota_timeout = millis();
+        
+        vk.stop();
+        ArduinoOTA.begin();
+        // ждём OTA с таймаутом 5 минут
+        while (millis() - ota_timeout < 300000) {
+            ArduinoOTA.handle();
+            yield();
+        }
+        // по истечении таймаута - ребут
+        ESP.restart();
+    }
 
     // сообщения об ошибках
     if (fail_flag > 0 && fail_count == 0) {

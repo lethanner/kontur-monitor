@@ -252,3 +252,10 @@ char* VKAPI::readHTTPResponse(Stream& str)
     received[cLength] = '\0';
     return received;
 }
+
+void VKAPI::stop()
+{
+    lp.stop();
+    api.stop();
+    debug->println(F("[INFO] Stopping VK API."));
+}

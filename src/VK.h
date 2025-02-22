@@ -21,6 +21,7 @@ class VKAPI
     }
     bool getLpMFLNStatus() { return mfln_status[1]; }
     bool getApiMFLNStatus() { return mfln_status[0]; }
+    void stop();
 
   private:
     enum class Method { GET, POST };
