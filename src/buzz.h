@@ -9,16 +9,16 @@ namespace Buzz {
         { 2000, 100 }
     };
 
-    static const uint16_t reminder[4][2] = {
-        { 1000, 100 },
-        { 2000, 100 },
-        { 1000, 100 },
-        { 2000, 100 }
-    };
-
     static const uint16_t ota_ready[2][2] = {
         { 3000, 400 },
         { 1000, 400 },
+    };
+
+    static const uint16_t reminder[4][2] = {
+      { 1000, 100 },
+      { 1500, 100 },
+      { 2000, 100 },
+      { 1000, 100 }
     };
 
     static const uint16_t bootOK = 900;

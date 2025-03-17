@@ -12,6 +12,7 @@ VKAPI vk(access_token, group_id, &Serial);
 //time_t lastChangeTime = 0;
 bool openFlag = false;
 bool otaFlag = false;
+bool detect220V = false;
 volatile bool buttonPress = false;
 
 time_t now = 0;
@@ -83,9 +84,11 @@ void processEvent(JsonObjectConst event)
                   "wi-fi rssi: %i dBm\r\n"
                   "wi-fi errors: %u\r\n"
                   "request errors: %u\r\n"
+                  "220v: %u\r\n"
                   "free heap: %u bytes\r\n"),
              _now->tm_hour, _now->tm_min, _now->tm_sec, millis() / 1000, WiFi.RSSI(),
-             fail_counter[1], fail_counter[0], ESP.getFreeHeap());
+             fail_counter[1], fail_counter[0],
+             static_cast<uint8_t>(digitalRead(DETECT_PIN)), ESP.getFreeHeap());
             vk.sendMessage(peer_id, reply);
         }
         // команды только для админского чата
@@ -126,6 +129,7 @@ void setup()
     pinMode(TONE_PIN, OUTPUT);
     pinMode(LED_PIN, OUTPUT);
     pinMode(BTN_PIN, INPUT_PULLUP);
+    pinMode(DETECT_PIN, INPUT);
     buzz(Buzz::startup, 4);
 
     Serial.begin(74880);
@@ -191,17 +195,21 @@ void setup()
         Buzz::warning();
     }
 
+    // автоподстановка статуса при инициализации
+    // есть 220В в клубе - значит он открыт
+    openFlag = digitalRead(DETECT_PIN);
+
     // отправить админам сообщение об инициализации
-    char startup_msg[100];
-    snprintf_P(
-     startup_msg, 100, PSTR("успешный запуск: %u мс\r\nmfln: %d/%d\r\nrst reason: %u"),
-     millis() - startup_counter, vk.getApiMFLNStatus(), vk.getLpMFLNStatus(), resetInfo->reason);
+    char startup_msg[120];
+    snprintf_P(startup_msg, 120, PSTR("время запуска: %u мс\r\nmfln: %d/%d\r\nrst reason: %u\r\n220v: %u"),
+               millis() - startup_counter, vk.getApiMFLNStatus(), vk.getLpMFLNStatus(),
+               resetInfo->reason, static_cast<uint8_t>(openFlag));
     vk.sendMessage(sa_dialog_id, startup_msg);
 
     tone(TONE_PIN, Buzz::bootOK, 250);
-    digitalWrite(LED_PIN, false);
     //lastChangeTime = time(nullptr);
 
+    digitalWrite(LED_PIN, openFlag);
     attachInterrupt(digitalPinToInterrupt(BTN_PIN), toggleKonturState, FALLING);
 }
 
@@ -246,6 +254,28 @@ void loop()
         fail_flag = 0;
     }
 
+    // уведомление о включении света в админский чат
+    static bool last220Vstate = openFlag;
+    static uint8_t reminder_count = 0;
+    detect220V = digitalRead(DETECT_PIN);
+    if (detect220V != last220Vstate) {
+        // пять попыток отправить инфу в админский чат
+        // а то вдруг чего не сработает
+        // TODO: хватит дублировать код
+        for (byte i = 0; i < 5; i++) {
+            int status = vk.sendMessage(sa_dialog_id, detect220V ? "включен свет" : "свет отключен");
+            if (status > -1) break;
+            else if (i == 4) terminate();
+            else Buzz::warning();
+        }
+        reminder_count = 0;
+        last220Vstate = detect220V;
+    }
+    // напоминание о необходимости подтверждения открытия/закрытия клуба
+    if (openFlag != detect220V && reminder_count < 255 && reminder_count++ < 20) {
+        buzz(Buzz::reminder, 4);
+    }
+
     // спокойно опрашиваем сервер ВК на предмет новых сообщений.
     // если 5 подряд неудачных попыток связи - останавливаем работу
     if (!vk.longPoll()) {
@@ -283,10 +313,10 @@ void loop()
     }
 
     // автоматизация в виде автозакрытия клуба в 22:00
-    if (openFlag && _now->tm_hour >= 22 && _now->tm_hour <= 8) {
+    if (openFlag && _now->tm_hour >= 22 || _now->tm_hour <= 8) {
         openFlag = false;
         digitalWrite(LED_PIN, false);
 
-        vk.sendMessage(sa_dialog_id, "автозакрытие 22:00");
+        vk.sendMessage(sa_dialog_id, "автозакрытие 22:00-8:00");
     }
 }
