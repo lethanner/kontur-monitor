@@ -319,7 +319,7 @@ void loop()
     }
 
     // автоматизация в виде автозакрытия клуба в 22:00
-    if (openFlag && _now->tm_hour >= 22 || _now->tm_hour <= 8) {
+    if (openFlag && (_now->tm_hour >= 22 || _now->tm_hour <= 8)) {
         openFlag = false;
         digitalWrite(LED_PIN, false);
 
