@@ -24,6 +24,7 @@ static const char* default_button =
  "{\"buttons\": [[{\"action\": {\"type\": \"text\", \"label\": \"Клуб открыт?\"}}]]}";
 
 static const char* green = "🟢 Да, клуб открыт! Приходи.";
+static const char* yellow = "🟡 Клуб в состоянии Шрёдингера. Вроде открыт, а вроде и нет...";
 static const char* red = "🔴 Клуб закрыт. :(";
 
 // счётчики ошибок
@@ -68,11 +69,16 @@ void processEvent(JsonObjectConst event)
         // ответ на сообщение "клуб открыт?"
         // PS: фиг там, а не strcasecmp - ибо юникод
         if (strstr(text, "Клуб открыт") != NULL || strstr(text, "клуб открыт") != NULL) {
+            const char* statusMsg;
+            if (openFlag != detect220V)
+                statusMsg = yellow;
+            else
+                statusMsg = openFlag ? green : red;
             //time_t diff = time(nullptr) - lastChangeTime;
             // кнопка "Клуб открыт?" будет появляться только в личках, но не в беседах
             peer_id > 2000000000
-             ? vk.sendMessage(peer_id, openFlag ? green : red)
-             : vk.sendMessage(peer_id, openFlag ? green : red, default_button);
+             ? vk.sendMessage(peer_id, statusMsg)
+             : vk.sendMessage(peer_id, statusMsg, default_button);
         }
         // ответ на запрос состояния бота
         else if (strcmp(text, "/status") == 0) {
