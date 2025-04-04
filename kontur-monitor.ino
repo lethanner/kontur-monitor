@@ -62,13 +62,17 @@ void processEvent(JsonObjectConst event)
         uint32_t from_id = event["object"]["message"]["from_id"];
         uint32_t peer_id = event["object"]["message"]["peer_id"];
         const char* text = event["object"]["message"]["text"];
-        //const char* payload = event["object"]["message"]["payload"];
+        const char* payload = event["object"]["message"]["payload"];
 
         Serial.printf("[MESSAGE] From id%u: %s\r\n", from_id, text);
 
+        // кнопка "Начать"
+        if (payload != NULL && strcmp(payload, "{\"command\":\"start\"}") == 0) {
+            vk.sendMessage(peer_id, "Держи нужную кнопку.", default_button);
+        }
         // ответ на сообщение "клуб открыт?"
         // PS: фиг там, а не strcasecmp - ибо юникод
-        if (strstr(text, "Клуб открыт") != NULL || strstr(text, "клуб открыт") != NULL) {
+        else if (strstr(text, "Клуб открыт") != NULL || strstr(text, "клуб открыт") != NULL) {
             const char* statusMsg;
             if (openFlag != detect220V)
                 statusMsg = yellow;
