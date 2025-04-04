@@ -28,7 +28,7 @@ static const char* yellow = "🟡 Клуб в состоянии Шрёдинг�
 static const char* red = "🔴 Клуб закрыт. :(";
 
 // счётчики ошибок
-byte fail_counter[2];
+byte fail_counter[2] = { 0, 0 };
 
 void buzz(const uint16_t table[][2], const uint8_t length)
 {
@@ -88,8 +88,8 @@ void processEvent(JsonObjectConst event)
              PSTR("time: %i:%i:%i\r\n"
                   "uptime: %u s\r\n"
                   "wi-fi rssi: %i dBm\r\n"
-                  "wi-fi errors: %u\r\n"
-                  "request errors: %u\r\n"
+                  "wi-fi retries: %u\r\n"
+                  "request retries: %u\r\n"
                   "220v: %u\r\n"
                   "free heap: %u bytes\r\n"),
              _now->tm_hour, _now->tm_min, _now->tm_sec, millis() / 1000, WiFi.RSSI(),
@@ -139,7 +139,7 @@ void setup()
     buzz(Buzz::startup, 4);
 
     Serial.begin(74880);
-    Serial.println(F("\r\nKontur monitoring system v.1.0\r\n"
+    Serial.println(F("\r\nKontur monitoring system v.1.0.1\r\n"
                      "Made by Lethanner.\r\n"));
 
     // подключение к wi-fi
@@ -221,7 +221,7 @@ void setup()
 
 void loop()
 {
-    static byte fail_count = 0, fail_flag = 0;
+    static byte fail_count = 0;
 
     // часики
     now = time(nullptr);
@@ -243,21 +243,6 @@ void loop()
         }
         // по истечении таймаута - ребут
         ESP.restart();
-    }
-
-    // сообщения об ошибках
-    if (fail_flag > 0 && fail_count == 0) {
-        char msg[100];
-        switch (fail_flag) {
-        case 1:
-            strcpy_P(msg, PSTR("боту стало худо, но он смог прекратить свои страдания."));
-            break;
-        case 2: strcpy_P(msg, PSTR("кратковременный сбой wi-fi")); break;
-        }
-
-        vk.sendMessage(sa_dialog_id, msg);
-        fail_counter[fail_flag - 1]++;
-        fail_flag = 0;
     }
 
     // уведомление о включении света в админский чат
@@ -283,22 +268,23 @@ void loop()
     }
 
     // спокойно опрашиваем сервер ВК на предмет новых сообщений.
-    // если 5 подряд неудачных попыток связи - останавливаем работу
+    // если 10 подряд неудачных попыток связи - останавливаем работу
     if (!vk.longPoll()) {
-        fail_flag = 1;
+        if (++fail_count > 9) terminate();
         Buzz::warning();
-        if (++fail_count > 5) terminate();
+        fail_counter[0]++;
+        delay(15000); // задержка, чтобы очухалось
     } else fail_count = 0;
 
     // если вдруг пропала связь с wi-fi - пищим и подмигиваем диодиком
     // а после 3 минут отсутствия связи - terminate
     while (WiFi.status() != WL_CONNECTED) {
-        fail_flag = 2;
-        delay(2000);
-        if (++fail_count > 90) terminate();
+        if (++fail_count > 12) terminate();
         digitalWrite(LED_PIN, !openFlag);
         Buzz::warning();
         digitalWrite(LED_PIN, openFlag);
+        fail_counter[1]++;
+        delay(15000);
     }
 
     // обрабатываем кнопочку
