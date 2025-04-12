@@ -28,6 +28,7 @@ class VKAPI
     bool apiRequest(Method m, const char* method, const char* args);
     bool updateLongPoll();
 
+    bool streamTimedWait(Stream& str);
     char* readHTTPResponse(Stream& str);
 
     const char* token;

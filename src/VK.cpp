@@ -72,10 +72,10 @@ int VKAPI::sendMessage(uint32_t peer_id, const char* text, const char* keyboard)
     // сформировать запрос, выслать на сервер
     snprintf(data, length, "random_id=0&peer_id=%u&keyboard=%s&message=%s", peer_id, keyboard, text);
     if (!apiRequest(Method::POST, "messages.send", data)) {
-        delete[] data;
+        free(data);
         return -1;
     }
-    delete[] data;
+    free(data);
 
     // получить результат
     int result = -1;
@@ -100,7 +100,7 @@ int VKAPI::sendMessage(uint32_t peer_id, const char* text, const char* keyboard)
         debug->println(error_msg);
     }
 
-    delete[] response;
+    free(response);
     return result;
 }
 
@@ -150,7 +150,7 @@ bool VKAPI::updateLongPoll()
     debug->print(F("[DEBUG] "));
     debug->println(lprequest);
 
-    delete[] response;
+    free(response);
     return true;
 }
 
@@ -195,7 +195,7 @@ bool VKAPI::longPoll()
     else {
         if (!eventsJson.containsKey("ts")) {
             debug->println(F("[ERROR] Something went wrong... can't get new TS value"));
-            delete[] events;
+            free(events);
 
             return false;
         }
@@ -210,7 +210,19 @@ bool VKAPI::longPoll()
         ts = new_ts;
     }
 
-    delete[] events;
+    free(events);
+    return true;
+}
+
+bool VKAPI::streamTimedWait(Stream& str)
+{
+    uint32_t timeout = millis();
+    while (!str.available()) {
+        if ((millis() - timeout) > 2000) {
+            debug->println(F("[ERROR] Timed out waiting for available data."));
+            return false;
+        }
+    }
     return true;
 }
 
@@ -222,22 +234,74 @@ char* VKAPI::readHTTPResponse(Stream& str)
         return NULL;
     }
 
-    uint16_t cLength = 0;
-    // ищем в заголовках инфу об объеме информации, которую предстоит получить
-    // если такой нет - F
+    // UPD 11.04.2025 - ВК резко сделал chunked encoding принудительным...
+    // теперь я всё таки вынужден принимать их порциями и делать realloc
+    /*uint16_t cLength = 0;
     if (str.find("Content-Length: ")) cLength = str.parseInt();
     else {
         debug->println(F("[ERROR] No Content-Length header!!"));
         return NULL;
-    }
+    }*/
     // пролистываем stream до конца http-заголовков, если такого нет - F
     if (!str.find("\r\n\r\n")) {
         debug->println(F("[ERROR] No end of headers!"));
         return NULL;
     }
 
+    char* received = NULL;
+    uint16_t chunk_size;
+    uint16_t cLength = 1, pos = 0;
+    while (1) {
+        char ch;
+        chunk_size = 0;
+        uint8_t chunk_count = 0, digit;
+        while (streamTimedWait(str) && (ch = str.read()) != '\r') {
+            digit = 0;
+            if (ch >= 'a' && ch <= 'f')
+                digit = ch - 'a' + 10;
+            else if (ch >= 'A' && ch <= 'F')
+                digit = ch - 'A' + 10;
+            else if (ch >= '0' && ch <= '9')
+                digit = ch - '0';
+            else {
+                debug->print(F("[ERROR] Not a HEX symbol, got "));
+                debug->println(ch, HEX);
+                return NULL;
+            }
+            chunk_size = chunk_size * 16 + digit;
+        }
+
+        if (!streamTimedWait(str) || str.read() != '\n') {
+            debug->println(F("[ERROR] Timed out or no new line after chunk size."));
+            return NULL;
+        }
+        debug->print(F("[DEBUG] Chunk size: "));
+        debug->println(chunk_size);
+
+        if (chunk_size == 0) return received;
+
+        cLength += chunk_size;
+        if (chunk_count == 0)
+            received = (char*)malloc(sizeof(char) * cLength);
+        else
+            received = (char*)realloc(received, sizeof(char) * cLength);
+        
+        char recv;
+        while (streamTimedWait(str) && (recv = str.read()) != '\r') {
+            received[pos++] = recv;
+        }
+        received[pos] = '\0';
+        debug->print(F("[DEBUG] Received data: "));
+        debug->println(received);
+
+        if (!streamTimedWait(str) || str.read() != '\n') {
+            debug->println(F("[ERROR] Timed out or no new line after received chunk."));
+            return NULL;
+        }
+    };
+
     // выделяем буфер под принятые данные
-    char* received = new char[cLength + 1];
+    /*char* received = new char[cLength + 1];
     if (received == NULL) {
         debug->println(F("[ERROR] Can't allocate memory for response..."));
         return NULL;
@@ -250,7 +314,7 @@ char* VKAPI::readHTTPResponse(Stream& str)
 
     // нуль-терминатор в конец строки
     received[cLength] = '\0';
-    return received;
+    return received;*/
 }
 
 void VKAPI::stop()
