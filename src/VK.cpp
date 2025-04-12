@@ -236,22 +236,29 @@ char* VKAPI::readHTTPResponse(Stream& str)
 
     byte encodingType = 0;
     uint16_t cLengthClassic = 0;
+    // извлечение и парсинг заголовков
     while (1) {
         char header[128], _ch;
         uint8_t h_pos = 0;
+        // чтение заголовка в буфер
         while (streamTimedWait(str) && (_ch = str.read()) != '\r') {
             if (h_pos < 127) header[h_pos++] = _ch;
         }
+        // отсеивание переноса строки из потока перед приёмом следующего хедера
         if (str.read() != '\n') {
             debug->println(F("[ERROR] Headers processing failed"));
             return NULL;
         }
         header[h_pos] = '\0';
-        
+
+        // пустая строка - заголовки кончились
         if (h_pos == 0) break;
         //debug->print(F("[DEBUG] Header "));
         //debug->println(header);
 
+        // ищем заголовки Content-Length или Transfer-Encoding
+        // на основе этого определяем, в каком кодировании пришли данные
+        // сразу узнаём полный объём данных в байтах, когда можем
         if (strncmp(header, "Content-Length:", 15) == 0) {
             cLengthClassic = atoi(header + 15);
             //debug->print(F("[DEBUG] Using classic encoding. Length: "));
@@ -266,16 +273,20 @@ char* VKAPI::readHTTPResponse(Stream& str)
     // UPD 11.04.2025 - ВК резко сделал chunked encoding принудительным...
     // теперь я всё таки вынужден принимать их порциями и делать realloc
     char* received = NULL;
+    /* Обработка chunked encoding */
     if (encodingType == 2) {
         uint16_t chunk_size;
         uint16_t cLength = 1, pos = 0;
+        // цикл, т.к. чанков может быть несколько
         while (1) {
             char ch;
             chunk_size = 0;
             uint8_t chunk_count = 0, digit;
+            // тело ответа начинается с инфы о размере чанка, извлекаем
             while (streamTimedWait(str) && (ch = str.read()) != '\r') {
                 //debug->print(F("ch: "));
                 //debug->println(ch, HEX);
+                // инфа представлена в виде hex в строке, преобразовываем
                 digit = 0;
                 if (ch >= 'a' && ch <= 'f')
                     digit = ch - 'a' + 10;
@@ -291,19 +302,20 @@ char* VKAPI::readHTTPResponse(Stream& str)
                 chunk_size = chunk_size * 16 + digit;
             }
 
-            if (str.read() != '\n') {
+            if (str.read() != '\n') { // пропуск LF
                 debug->println(F("[ERROR] Timed out or no new line after chunk size."));
                 return NULL;
             }
             debug->print(F("[DEBUG] Chunk size: "));
             debug->println(chunk_size);
 
+            // чанки в ответе заканчиваются передачей 0 в размере
             if (chunk_size == 0) return received;
 
             cLength += chunk_size;
-            if (chunk_count == 0)
+            if (chunk_count == 0) // первый чанк - выделяем память с нуля
                 received = (char*)malloc(sizeof(char) * cLength);
-            else
+            else // последующие чанки - дополняем выделенную память
                 received = (char*)realloc(received, sizeof(char) * cLength);
             chunk_count++;
 
@@ -313,6 +325,7 @@ char* VKAPI::readHTTPResponse(Stream& str)
             }
             
             char recv;
+            // читаем данные в буфер до CR+LF (после которого передаётся размер след чанка)
             while (streamTimedWait(str) && (recv = str.read()) != '\r') {
                 //debug->print(F("recv: "));
                 //debug->println(recv, HEX);
@@ -322,12 +335,13 @@ char* VKAPI::readHTTPResponse(Stream& str)
             debug->print(F("[DEBUG] Received data: "));
             debug->println(received);
 
-            if (str.read() != '\n') {
+            if (str.read() != '\n') { // пропуск LF
                 debug->println(F("[ERROR] Timed out or no new line after received chunk."));
                 return NULL;
             }
         };
     }
+    /* Classic encoding (без чанков) */
     else if (encodingType == 1) {
         received = (char*)malloc(cLengthClassic + 1);
         if (received == NULL) {
@@ -342,6 +356,7 @@ char* VKAPI::readHTTPResponse(Stream& str)
         received[cLengthClassic] = '\0';
         return received;
     }
+    /* неизвестно какой encoding */
     else {
         debug->println(F("[ERROR] Unknown transfer encoding type"));
         return NULL;
