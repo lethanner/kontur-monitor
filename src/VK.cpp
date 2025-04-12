@@ -288,12 +288,9 @@ char* VKAPI::readHTTPResponse(Stream& str)
                 //debug->println(ch, HEX);
                 // инфа представлена в виде hex в строке, преобразовываем
                 digit = 0;
-                if (ch >= 'a' && ch <= 'f')
-                    digit = ch - 'a' + 10;
-                else if (ch >= 'A' && ch <= 'F')
-                    digit = ch - 'A' + 10;
-                else if (ch >= '0' && ch <= '9')
-                    digit = ch - '0';
+                if (ch >= 'a' && ch <= 'f') digit = ch - 'a' + 10;
+                else if (ch >= 'A' && ch <= 'F') digit = ch - 'A' + 10;
+                else if (ch >= '0' && ch <= '9') digit = ch - '0';
                 else {
                     debug->print(F("[ERROR] Not a HEX symbol, got "));
                     debug->println(ch, HEX);
@@ -302,7 +299,7 @@ char* VKAPI::readHTTPResponse(Stream& str)
                 chunk_size = chunk_size * 16 + digit;
             }
 
-            if (str.read() != '\n') { // пропуск LF
+            if (str.read() != '\n') {  // пропуск LF
                 debug->println(F("[ERROR] Timed out or no new line after chunk size."));
                 return NULL;
             }
@@ -313,9 +310,9 @@ char* VKAPI::readHTTPResponse(Stream& str)
             if (chunk_size == 0) return received;
 
             cLength += chunk_size;
-            if (chunk_count == 0) // первый чанк - выделяем память с нуля
+            if (chunk_count == 0)  // первый чанк - выделяем память с нуля
                 received = (char*)malloc(sizeof(char) * cLength);
-            else // последующие чанки - дополняем выделенную память
+            else  // последующие чанки - дополняем выделенную память
                 received = (char*)realloc(received, sizeof(char) * cLength);
             chunk_count++;
 
@@ -323,7 +320,7 @@ char* VKAPI::readHTTPResponse(Stream& str)
                 debug->println(F("[ERROR] Can't (re)allocate memory for response..."));
                 return NULL;
             }
-            
+
             char recv;
             // читаем данные в буфер до CR+LF (после которого передаётся размер след чанка)
             while (streamTimedWait(str) && (recv = str.read()) != '\r') {
@@ -335,7 +332,7 @@ char* VKAPI::readHTTPResponse(Stream& str)
             debug->print(F("[DEBUG] Received data: "));
             debug->println(received);
 
-            if (str.read() != '\n') { // пропуск LF
+            if (str.read() != '\n') {  // пропуск LF
                 debug->println(F("[ERROR] Timed out or no new line after received chunk."));
                 return NULL;
             }
